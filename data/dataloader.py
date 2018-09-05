@@ -124,14 +124,16 @@ class PairVisualization(object):
         self.mean = np.array([0.485, 0.456, 0.406]).reshape(3, 1, 1)
         self.std = np.array([0.229, 0.224, 0.225]).reshape(3, 1, 1)
 
-    def save_img(self, img, path):
+    def save_img(self, img, path, size=(256, 256)):
         img = img * self.std + self.mean
+        img *= 255
         img = img.astype(np.uint8)
         img = np.transpose(img, [1,2,0])
         img = Image.fromarray(img) 
+        img.resize(size)
         img.save(path)
 
-    def save_label(self, label, path):
+    def save_label(self, label, path, size=(256, 256)):
         h, w = label.shape
         label = label.astype(np.uint8)
         label_img = np.zeros((h, w, 3), dtype=np.uint8)
@@ -141,6 +143,7 @@ class PairVisualization(object):
             label_img[label == k, :] = color.reshape(1, 3)
         label_img = label_img.reshape(h, w, 3)
         label_img = Image.fromarray(label_img)
+        label_img.resize(size, resample=PIL.Image.NEAREST)
         label_img.save(path)
 
     def save_pair(self, img, label, suffix):
