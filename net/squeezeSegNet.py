@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
+import slim
 
 
 __all__ = ['SqueezeNet', 'squeezenet1_0', 'squeezenet1_1']
@@ -14,10 +15,10 @@ model_urls = {
 }
 
 
-class Fire(nn.Module):
+class Fire1(nn.Module):
     def __init__(self, inplanes, squeeze_planes,
                  expand1x1_planes, expand3x3_planes):
-        super(Fire, self).__init__()
+        super(Fire1, self).__init__()
         self.inplanes = inplanes
         self.squeeze = nn.Conv2d(inplanes, squeeze_planes, kernel_size=1)
         self.squeeze_activation = nn.ReLU(inplace=True)
@@ -35,10 +36,27 @@ class Fire(nn.Module):
             self.expand3x3_activation(self.expand3x3(x))
         ], 1)
 
+class Fire(nn.Module):
+    def __init__(self, inplanes, squeeze_planes,
+                 expand1x1_planes, expand3x3_planes):
+        super(Fire, self).__init__()
+        self.inplanes = inplanes
+        self.squeeze_activation = slim.conv_bn_relu(inplanes, squeeze_planes, k_size=1, stride=1, pad=0)
+        self.expand1x1_activation = slim.conv_bn_relu(squeeze_planes, expand1x1_planes, k_size=1, stride=1, pad=0)
+        self.expand3x3_activation = slim.conv_bn_relu(squeeze_planes, expand3x3_planes, k_size=3, stride=1, pad=1)
 
-class SqueezeSegNet(nn.Module):
+    def forward(self, x):
+        x = self.squeeze_activation(x)
+        return torch.cat([
+            self.expand1x1_activation(x),
+            self.expand3x3_activation(x)
+        ], 1)
+
+
+
+class LayoutNet(nn.Module):
     def __init__(self, num_classes = 6, version=1.0):
-        super(SqueezeSegNet, self).__init__()
+        super(LayoutNet, self).__init__()
         if version not in [1.0, 1.1]:
             raise ValueError("Unsupported SqueezeNet version {version}:"
                              "1.0 or 1.1 expected".format(version=version))
@@ -77,7 +95,8 @@ class SqueezeSegNet(nn.Module):
             )
         # Final convolution is initialized differently form the rest
         final_conv = nn.Conv2d(256, self.num_classes, kernel_size=1)
-        self.classifier = nn.Sequential(
+        self.classifier = final_conv
+        self.classifier1 = nn.Sequential(
             nn.Dropout(p=0.5),
             final_conv,
             #nn.ReLU(inplace=True),
@@ -97,7 +116,9 @@ class SqueezeSegNet(nn.Module):
     def forward(self, x):
         x = self.features(x)
         x = self.classifier(x)
-        return x.view(x.size(0), self.num_classes)
+        #print x.shape
+        return x
+        #return x.view(x.size(0), self.num_classes)
 
     def _load_state_dict(self, src_state_dict):
         dst_state_dict = self.state_dict()
@@ -107,12 +128,34 @@ class SqueezeSegNet(nn.Module):
             #print "Copying ", key, value.size(), src_state_dict[key].size()
             value[:] = src_state_dict[key]
 
-def SegNet(model, x, label):
+def seg_forward(model, x, labels):
     preds = model(x)
-    print preds.shape
+    #print preds.max()
     n, h, w = labels.shape
     preds = F.upsample_bilinear(preds, size=(h, w))
-    print preds.shape
     loss = F.nll_loss(F.log_softmax(preds), labels)
     return preds, loss
 
+
+def SegForward(object):
+    def __init__(self, num_classes):
+        pass
+
+    def __call__(self, x, label):
+        preds = self.model(x)
+        print preds.shape
+        n, h, w = labels.shape
+        preds = F.upsample_bilinear(preds, size=(h, w))
+        print preds.shape
+        loss = F.nll_loss(F.log_softmax(preds), labels)
+        return preds, loss
+
+if __name__ == '__main__':
+    from torch.autograd import Variable
+    model = LayoutNet(6)
+    x = Variable(torch.rand(2, 3, 256, 256))
+    label = Variable(torch.ones(2, 256, 256).long())
+    preds, loss = seg_forward(model, x, label)
+    print loss
+    loss.backward()
+    print loss
