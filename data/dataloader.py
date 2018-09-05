@@ -10,8 +10,9 @@ class DBLoader(object):
         db = np.load(db_path)
         mean = np.array([0.485, 0.456, 0.406]).reshape(1, 3, 1, 1)
         std = np.array([0.229, 0.224, 0.225]).reshape(1, 3, 1, 1)
+        imgs = db['images'] / 255.0
 
-        self.imgs = (db['images'] - mean) / std
+        self.imgs = (imgs - mean) / std
         self.imgs = self.imgs.astype(np.float32)
         self.labels = db['labels'].astype(np.int)  #0-5
         self.names = db['ids']
@@ -165,19 +166,17 @@ def get_train_val_loader(num_dset=-1):
     return train_loader, val_loader
 
 if __name__ == '__main__':
+    val_loader = get_val_loader()
+    for imgs, labels in val_loader.iter(100):
+        print imgs.max()
+        print imgs.min()
+
+
+if __name__ == '_main__':
     train_ids = [line.strip() for line in open('/mnt/cephfs/lab/fzy/LSUN/list/train.txt')][:10]
     val_ids = [line.strip() for line in open('/mnt/cephfs/lab/fzy/LSUN/list/val.txt')][:10]
     train_loader = DataLoader(train_ids)
     val_loader = DataLoader(train_ids)
-    '''
-    for imgs, labels in train_loader.iter(10):
-        print imgs.shape, labels.shape
-        print imgs.mean()
-        print imgs.max(), labels.max()
-        print imgs.min(), labels.min()
-        print imgs.dtype, labels.dtype
-        print '*'*20
-    '''
 
     mean = np.array([0.485, 0.456, 0.406]).reshape(3, 1, 1)
     std = np.array([0.229, 0.224, 0.225]).reshape(3, 1, 1)
